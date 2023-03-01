@@ -4,56 +4,53 @@ using System.Timers;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
+System.Threading.Timer timer;
+
+int interval = 1000;
+
+bool isCheck = false;
+
 List<SomeEvent> events = new List<SomeEvent>(); //Статическое хранилище для присланных событий
+
 var value_sum = 0; //Переменная для сбора статистики присланных значений value за минуту
 
 Console.WriteLine(DateTime.Now + " - Сервер запущен"); //Оповещение в консоль о дате и времени активации сервера
 
-MyLogger(); //Запуск метода по ежеминутной отправке в консоль данных о сумме присланных значений VALUE
-
-//Получение данных о некотором событии из присланного запроса
-app.Run(async (context) =>
+//Midleware для обработки запроса на регистрацию некоторого события
+app.MapPost("/events", (SomeEvent someEvent)=>
 {
-    var response = context.Response;
-    var request = context.Request;
-    if (request.HasJsonContentType())
-    {
-        var message = "Некорректные данные";
-        try
-        {
-            var some_event = await request.ReadFromJsonAsync<SomeEvent>();
-            if (some_event != null)
-            {
-                events.Add(some_event);
-                value_sum += some_event.Value;
-                message = "Данные успешно сохранены";
-            }
-        }
-        catch { }
-
-        await response.WriteAsJsonAsync(new { text = message });
-    }
-    else
-    {
-        await response.WriteAsync("Привет, отправь мне событие");
-    }
+    events.Add(someEvent);
+    if (isCheck)
+        value_sum += someEvent.Value;
+    var message = value_sum;
+    return message;
 });
 
+app.MapGet("/checkvalue", () =>
+{
+    isCheck = true;
+    CheckValue();
+    return "Счётчик событий запущен";
+});
 
 app.Run();
 
-void MyLogger() //Метод запуска цикличного таймера для ведения в консоли статистики присланных занчений VALUE
+void CheckValue() //Метод запуска цикличного таймера для ведения в консоли статистики присланных занчений VALUE
 {
-    System.Timers.Timer timer = new System.Timers.Timer(60000);
+    /*System.Timers.Timer timer = new System.Timers.Timer(60000);
 
-    timer.Elapsed += CheckValuesum;
+    timer.Elapsed += SendValuesum;
     timer.AutoReset = true;
-    timer.Enabled = true;
+    timer.Enabled = true;*/
+    timer = new System.Threading.Timer(new TimerCallback(SendValuesum), null, 1000, interval);
 }
 
 //Метод отправки сообщения на консоль
-void CheckValuesum(object source, ElapsedEventArgs e)
+async void SendValuesum(object obj)
 {
+    /*HttpContext context = (HttpContext)obj;
+    Console.WriteLine(context.User);
+    await context.Response.WriteAsync(DateTime.Now + $" - {value_sum}");*/
     Console.WriteLine(DateTime.Now + $" - {value_sum}");
     value_sum = 0;
 }
